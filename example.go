@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -41,8 +42,28 @@ func main() {
 	if err != nil {
 		panic("DB 연결에 실패했습니다")
 	}
-	post := Post{Title: "HEllo"}
-	db.Create(&post)
+	//post := Post{Title: "HEllo"}
+	//db.Create(&post)
+
+	var post Post
+	db.Raw("SELECT id, title FROM posts WHERE id = ?", 1).Scan(&post)
+	fmt.Printf("%+v\n", post)
+
+	//rows, err := db.Raw("SELECT * from posts").Rows()
+	//if err != nil {
+	//	// error handling
+	//}
+	//defer rows.Close()
+	//
+	//for rows.Next() {
+	//	var post Post
+	//	err := rows.Scan(&post.BasicPost.ID, &post.Title)
+	//	if err != nil {
+	//		// error handling
+	//	}
+	//
+	//	fmt.Printf("%+v\n", post)
+	//}
 
 	r := gin.Default()
 	//gin.Context -> HTTP요청과 관련된 정보를 갖고있는 구조체, 요청에 대한 처리를 담당하는 핸들러함수
