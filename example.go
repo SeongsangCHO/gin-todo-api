@@ -49,11 +49,12 @@ func initDatabase() *gorm.DB {
 }
 
 func GetPost(c *gin.Context) {
-	fmt.Println("HEELO THIS IS POST:/ID")
 	var post Post
 	postId := c.Params.ByName("id")
-	if err := DB.Raw("SELECT * FROM posts WHERE id = ?", postId).Scan(&post); err != nil {
-		// TODO - > 값이 조회는 되는데 에러처리가 제대로 되지 않는 이슈가 있음
+	if err := DB.Raw("SELECT * FROM posts WHERE id = ?", postId).Scan(&post).Error; err != nil {
+		// TODO - > 값이 조회는 되는데 에러처리가 제대로 되지 않는 이슈가 있음 Scan이후 값이 없을때를 어떻게 catch하는지 ?
+		// return 받은 db data를 직렬화해야하는데 그 방법은 어떻게 하는지?
+		// db connection은 언제 어느 시점에 끊어야하는지 ?
 		c.JSON(http.StatusNotFound, gin.H{"error": "Post not found!"})
 		return
 	}
