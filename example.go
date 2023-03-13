@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"net/http"
 	"time"
 )
 
@@ -31,55 +32,54 @@ type Post struct {
 	Description sql.NullString
 }
 
-func main() {
+var DB *gorm.DB
+
+func initDatabase() *gorm.DB {
 	// gorm은 기본적으로 statement cache를 사용하고 있음(SQL문을 캐싱하여 재사용)
 	// PreferSimpleProtocol은 statement cache를 대신, 간단한 쿼리요청을 사용하는 것 -> 두 옵션을 비교하여 적절히 사용하는 것을 권장함
 	db, err := gorm.Open(postgres.New(postgres.Config{
 		DSN:                  "user=postgres password=1234 dbname=gorm-todo-api port=5432 sslmode=disable TimeZone=Asia/Seoul",
 		PreferSimpleProtocol: true, // disables implicit prepared statement usage
 	}), &gorm.Config{})
-
 	if err != nil {
-		panic("DB 연결에 실패했습니다")
+		fmt.Println("db ERROR: (initDatabase)", err)
 	}
-	//post := Post{Title: "HEllo"}
-	//db.Create(&post)
+	DB = db
+	return db
+}
+
+func GetPost(c *gin.Context) {
+	fmt.Println("HEELO THIS IS POST:/ID")
+	var post Post
+	postId := c.Params.ByName("id")
+	if err := DB.Raw("SELECT * FROM posts WHERE id = ?", postId).Scan(&post); err != nil {
+		// TODO - > 값이 조회는 되는데 에러처리가 제대로 되지 않는 이슈가 있음
+		c.JSON(http.StatusNotFound, gin.H{"error": "Post not found!"})
+		return
+	}
+	c.JSON(http.StatusOK, post)
+}
+
+func CreatePost(c *gin.Context) {
+
+}
+
+func setUpRouter() *gin.Engine {
+	r := gin.Default() // gin에서 기본 라우터를 담당
+
+	r.GET("/post/:id", GetPost)
+	r.POST("/post", CreatePost)
+	return r
+}
+
+func main() {
+
+	initDatabase()
+	r := setUpRouter()
 
 	var post Post
-	db.Raw("SELECT id, title FROM posts WHERE id = ?", 1).Scan(&post)
+	DB.Raw("SELECT id, title FROM posts WHERE id = ?", 1).Scan(&post)
 	fmt.Printf("%+v\n", post)
-
-	//rows, err := db.Raw("SELECT * from posts").Rows()
-	//if err != nil {
-	//	// error handling
-	//}
-	//defer rows.Close()
-	//
-	//for rows.Next() {
-	//	var post Post
-	//	err := rows.Scan(&post.BasicPost.ID, &post.Title)
-	//	if err != nil {
-	//		// error handling
-	//	}
-	//
-	//	fmt.Printf("%+v\n", post)
-	//}
-
-	r := gin.Default()
-	//gin.Context -> HTTP요청과 관련된 정보를 갖고있는 구조체, 요청에 대한 처리를 담당하는 핸들러함수
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "pong",
-		})
-	})
-
-	r.GET("/post", func(c *gin.Context) {
-		//	모든 post를 return하기
-	})
-
-	r.POST("/post", func(c *gin.Context) {
-		//	POST 생성하기
-	})
 
 	r.Run() // 서버가 실행 되고 0.0.0.0:8080 에서 요청을 기다립니다.
 }
