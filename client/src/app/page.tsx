@@ -4,9 +4,18 @@ import Image from "next/image";
 import { Inter } from "next/font/google";
 import styles from "./page.module.css";
 import React from "react";
+import Link from "next/link";
 
 const inter = Inter({ subsets: ["latin"] });
-
+export type Todo = {
+  id: number;
+  title: string;
+  category: string | null;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+};
 export default function Home() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,25 +35,34 @@ export default function Home() {
       .catch((err) => console.log(err));
   };
 
-  const [todoList, setTodoList] = React.useState([]);
+  const [todoList, setTodoList] = React.useState<Todo[]>([]);
   React.useEffect(() => {
     const fetchTodoList = async () => {
       try {
         const response = await fetch("http://localhost:8080/posts");
-        console.log(response);
-        const data = response.json();
+        const data = await response.json();
+        setTodoList(data.data || []);
+        return;
       } catch (e) {
         console.error(e);
       }
     };
     fetchTodoList();
-  });
+  }, []);
   return (
     <main>
       <div style={{ maxWidth: "25vw", margin: "0 auto" }}>
         <div>
           <h1>TODO LIST</h1>
-          <div></div>
+          <div>
+            <ul>
+              {todoList.map((todo) => (
+                <li key={todo.id}>
+                  <Link href={`/post/${todo.id}`}>{todo.title}</Link>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
 
         <form

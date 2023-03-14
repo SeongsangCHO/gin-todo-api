@@ -7,6 +7,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -18,19 +19,23 @@ import (
 //- created_at
 //- updated_at
 
-type BasicPost struct {
-	ID        uint           `gorm:"primaryKey;autoIncrementIncrement"`
-	CreatedAt time.Time      `gorm:"autoCreateTime:nano"`
-	UpdatedAt time.Time      `gorm:"autoUpdateTime:nano"`
-	DeletedAt gorm.DeletedAt `gorm:"index"`
+type Basic struct {
+	ID        uint           `gorm:"primaryKey;autoIncrementIncrement" json:"id"`
+	CreatedAt time.Time      `gorm:"autoCreateTime:nano" json:"createdAt"`
+	UpdatedAt time.Time      `gorm:"autoUpdateTime:nano" json:"updatedAt"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"deletedAt"`
 }
 
 type Post struct {
-	gorm.Model // === ID, CreatedAt, UpdatedAt을 기본적으로 가지고 있음 === 본인이 만든 BasicPost랑 같은 기능
-	//BasicPost   BasicPost `gorm:"embedded"`
-	Title       string  `gorm:"not null" json:"title"'`
-	Category    *string `json:"category"` //sql.NullString은 구조체 타입으로 JSON값을 해당 타입으로 변경할 수 없음. nullable하게 하려면 *string 사용
-	Description *string `json:"description"`
+	//gorm.Model // === ID, CreatedAt, UpdatedAt을 기본적으로 가지고 있음 === 본인이 만든 BasicPost랑 같은 기능
+	//Basic       Basic   `gorm:"embedded"`
+	ID          uint           `gorm:"primaryKey;autoIncrementIncrement" json:"id"`
+	CreatedAt   time.Time      `gorm:"autoCreateTime:nano" json:"createdAt"`
+	UpdatedAt   time.Time      `gorm:"autoUpdateTime:nano" json:"updatedAt"`
+	DeletedAt   gorm.DeletedAt `gorm:"index" json:"deletedAt"`
+	Title       string         `gorm:"not null" json:"title"'`
+	Category    *string        `json:"category"` //sql.NullString은 구조체 타입으로 JSON값을 해당 타입으로 변경할 수 없음. nullable하게 하려면 *string 사용
+	Description *string        `json:"description"`
 }
 
 var DB *gorm.DB
@@ -117,14 +122,30 @@ func GetAllPost(c *gin.Context) {
 		})
 }
 
+func DeletePost(c *gin.Context) {
+	var post Post
+	postId := c.Params.ByName("id")
+	if err := DB.Raw("DELETE FROM posts WHERE id = ?", postId).Scan(&post).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	postIdInt, err := strconv.Atoi(postId)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"id": postIdInt})
+}
+
 func setUpRouter() *gin.Engine {
 	r := gin.Default() // gin에서 기본 라우터를 담당
 	r.Use(cors.New(cors.Config{
-		AllowOrigins: []string{"http://localhost:3002"},
+		AllowOrigins: []string{"http://localhost:3001"},
 		AllowMethods: []string{"GET", "POST", "PATCH", "PUT", "DELETE"},
 	}))
 
 	r.GET("/post/:id", GetPost)
+	r.DELETE("/post/:id", DeletePost)
 	r.GET("/posts", GetAllPost)
 	r.POST("/post", CreatePost)
 	return r
