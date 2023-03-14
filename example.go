@@ -1,8 +1,8 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -19,17 +19,18 @@ import (
 //- updated_at
 
 type BasicPost struct {
-	ID        uint      `gorm:"primaryKey;autoIncrementIncrement"`
-	CreatedAt time.Time `gorm:"autoCreateTime:nano"`
-	UpdatedAt time.Time `gorm:"autoUpdateTime:nano"`
+	ID        uint           `gorm:"primaryKey;autoIncrementIncrement"`
+	CreatedAt time.Time      `gorm:"autoCreateTime:nano"`
+	UpdatedAt time.Time      `gorm:"autoUpdateTime:nano"`
+	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
 
 type Post struct {
-	//gorm.Model === ID, CreatedAt, UpdatedAt을 기본적으로 가지고 있음 === 본인이 만든 BasicPost랑 같은 기능
-	BasicPost   BasicPost `gorm:"embedded"`
-	Title       string    `gorm:"not null"`
-	Category    sql.NullString
-	Description sql.NullString
+	gorm.Model // === ID, CreatedAt, UpdatedAt을 기본적으로 가지고 있음 === 본인이 만든 BasicPost랑 같은 기능
+	//BasicPost   BasicPost `gorm:"embedded"`
+	Title       string  `gorm:"not null" json:"title"'`
+	Category    *string `json:"category"` //sql.NullString은 구조체 타입으로 JSON값을 해당 타입으로 변경할 수 없음. nullable하게 하려면 *string 사용
+	Description *string `json:"description"`
 }
 
 var DB *gorm.DB
@@ -42,7 +43,13 @@ func initDatabase() *gorm.DB {
 		PreferSimpleProtocol: true, // disables implicit prepared statement usage
 	}), &gorm.Config{})
 	if err != nil {
-		fmt.Println("db ERROR: (initDatabase)", err)
+		panic("db ERROR: (initDatabase)")
+	}
+	err = db.AutoMigrate(
+		&Post{},
+	)
+	if err != nil {
+		fmt.Println("Failed AutoMigrate")
 	}
 	DB = db
 	return db
@@ -62,13 +69,63 @@ func GetPost(c *gin.Context) {
 }
 
 func CreatePost(c *gin.Context) {
+	reqBody := Post{}
 
+	if err := c.ShouldBindJSON(&reqBody); err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var post Post
+	post.Title = reqBody.Title
+	post.Category = reqBody.Category
+	post.Description = reqBody.Description
+	// HTTP 요청 바디에서 JSON 읽어오기
+	if result := DB.Create(&post); result.Error != nil {
+		c.AbortWithError(http.StatusNotFound, result.Error)
+		return
+	}
+	c.JSON(http.StatusCreated, post)
+}
+
+func GetAllPost(c *gin.Context) {
+	rows, err := DB.Raw("SELECT * FROM posts").Rows()
+	if err != nil {
+		//	Error Handling
+	}
+	defer rows.Close()
+	var posts []Post
+	for rows.Next() {
+		var post Post
+		// 구조체의 field순서까지 맞춰줘야한다니..
+		err := rows.Scan(&post.ID, &post.CreatedAt, &post.UpdatedAt, &post.Title, &post.Category, &post.Description, &post.DeletedAt)
+		if err != nil {
+			// 에러 처리
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		posts = append(posts, post)
+	}
+	fmt.Println(posts)
+	if err := rows.Err(); err != nil {
+		// 에러 처리
+		return
+	}
+	c.JSON(http.StatusOK,
+		gin.H{
+			"data": posts,
+		})
 }
 
 func setUpRouter() *gin.Engine {
 	r := gin.Default() // gin에서 기본 라우터를 담당
+	r.Use(cors.New(cors.Config{
+		AllowOrigins: []string{"http://localhost:3002"},
+		AllowMethods: []string{"GET", "POST", "PATCH", "PUT", "DELETE"},
+	}))
 
 	r.GET("/post/:id", GetPost)
+	r.GET("/posts", GetAllPost)
 	r.POST("/post", CreatePost)
 	return r
 }
@@ -78,9 +135,11 @@ func main() {
 	initDatabase()
 	r := setUpRouter()
 
-	var post Post
-	DB.Raw("SELECT id, title FROM posts WHERE id = ?", 1).Scan(&post)
-	fmt.Printf("%+v\n", post)
+	// ! Question : 왜 안되는지 모르겠다.
+	//err := DB.Raw("INSERT INTO posts (title) VALUES (?)", "Hello")
+	//if err != nil {
+	//	panic("INSERT ERROR")
+	//}
 
 	r.Run() // 서버가 실행 되고 0.0.0.0:8080 에서 요청을 기다립니다.
 }
